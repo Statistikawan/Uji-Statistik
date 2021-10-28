@@ -1,0 +1,129 @@
+---
+title: "Regresi Logistik Biner"
+Author: "Moh. Batara"
+Date: "28 Oktober 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Analisis Regresi Logistik Biner
+Regresi Logistik digunakan untuk mencari hubungan hubungan variabel dependen (Y) yang bersifat dichotomus (bersakala nominal atau ordinal dengan 2 kategori) atau polychotomus (berskala nominal atau ordinal > 2 kategori) dengan satu atau lebih variabel independen (X) yang bersifat kontinu atau kategorik (Agresti, 2007)
+
+Salah satu regresi logistik yang sangat sederhana adalah resgresi logistik biner. Regresi logistik biner merupakan suatu metode analisis data yang digunakan untuk mencari hubungan variabel dependen (Y) yang bersifat biner atau dichotomus dengan variabel independen (X) yang bersifat polikotomus (Hosmer & Lemeshow, 1989)
+
+```{r Import Data}
+dt <- read.delim("clipboard")
+head(dt)
+```
+
+Salah satu model statistika yang dapat digunakan untuk menganalisis pola hubungan antara sekumpulan variabel independen dengan suatu variabel dependen bertipe kategorik. Tujuannya adalah untuk memprediksi probabilitas terjadinya atau tidak terjadinya event berdasarkan nilai-nilai prediktor yang ada. Event merupakan status variabel respon yang menjadi pokok perhatian (diberi nilai kode yang lebih tinggi daripada nonevent) dan untuk mengklasifikasikan subjek penelitian berdasarkan ambang (treshold) probabilitas.
+```{r membuat model regresi}
+reg <- glm(Y~X1+X2, data = dt, family = binomial(link = "logit"))
+reg
+```
+## Pengujian Signfikansi Parameter (uji overall)
+Pengujian ini dilakukan untuk melihat koefisein parameter secara keseluruhan terhadap variabel dependen/terikat. Hipotesis nol dalam pengujian ini adalah seluruh paramater = 0 atau tidak variabel independen yang memberikan pengaruh terhadap variabel dependen. H0 ditolak jika nilai G2 lebih besar chi square tabel.
+```{r membuat model regresi}
+library(pscl)
+pR2(reg)
+# Nilai chi square
+qchisq(0.95, 2)
+```
+Berdasarkan hasil pengujian serentak, menunjukkan bahwa nilai G2 =23.1808847 > chisquare tabel = 5.991465, maka gagal tolak H0 artinya  dapat disimpulkan bahwa terdpat pengaruh antara variabel indpenden terhadap variabel dependen
+
+## Uji Parsial
+Pengujian parsial dilakukan untuk mengetahui pengaruh variabel independen secara masing-masing terhadap variabel dependen, tolak hipotesis 0 jika p value < alfa 5% atau |nilai z| > tabel normal
+```{r membuat model regresi}
+summary(reg)
+# tabel normal
+qnorm(0.95, 0)
+```
+Pengujian parameter secara parsial menunjukkan untuk variabel X1 bahwa nilai p value > alfa 5% atau |nilai z| < tabel normal, sehingga gagal tolak H0 sehingga dapat disimpulkan bahwa tidak terdapat pengaruh yang signifikan antara variabel bebas X1 terhadap variabel dependen/terikat. untuk variabel bebas X2, nilai p value < alfa=0,05 atau |nilai z| > tabel norma, sehingga tolak Ho, artinya dapat disimpulkan bahwa terdapat pengaruh yang signifikan antara variabel bebas X2 terhadap variabel dependen/terikat.
+
+# Karena tidak ada parameter yang signifikan maka parameter dengan nilai p value tertinggi akan dikelaurkan dan dilakukan pengujian kembali (misal hasil diatas tidak terdapat parameter yg signifikan)
+
+```{r membuat model regresi}
+reg2 <- glm(Y~X2, data = dt, family = binomial(link = "logit"))
+summary(reg2)
+```
+## Pemilihan Model Terbaik
+Pemilihan model terbaik berdasarkan nilai Akaike Information Criterion (AIC), AIC adalah metode yang dapat digunakan untuk memilih model regresi terbaik yang ditemukan oleh Akaike dan Schwarz (Grasa, 1989). Menurut metode AIC, model regresi terbaik adalah model regresi yang mempunyai nilai AIC terkecil. Adapun nilai AIC untuk setiap model adalah :
+
+```{r membuat model regresi}
+model_logit <- c("model 1", "model 2") #dst
+AIC <- c(reg$aic, reg2$aic)
+kriteria <- data.frame(model_logit, AIC)
+kriteria
+```
+AIC terkecil adalah model 2, sehingga model yang akan digunkan untuk pemodelan vriabel bebas dan variabel terikat adalah Model 7
+
+## Uji Kesesuaian Model
+Pengujian kesesuain model menggunakan uji Hosmer-Lemeshow Goodness of Fit Test dengan hipotesis 0 adalah Model sesuai (tidak terdapat perbedaan yang sginifikan antara pengamatan dengan kemungkinan hasil prediksi), hipotesis 0 ditolak jika p value < alfa 5% atau nilai chsquare > chisquare tabel
+
+```{r membuat model regresi}
+library(ResourceSelection)
+hoslem.test(reg$y, fitted(reg)) #ingat gunakan model terbaik, berhubung diatas ada minimal satu variabel bebas yg berpengaruh secara parsial, jadi menggunakan model pertama
+
+# Chi square tabel
+qchisq(0.95, 8)
+```
+Nilai chsquare = 6.6968 < chisquare tabel = 15.50731, yang artinya model sesuai atau tidak ada perbedaan antara hasil pengamatan dengan kemungkinan hasil prediksi
+
+
+```{r membuat model regresi}
+pR2(reg)
+```
+Untuk mengukur kebaikan model juga dapat dilakukan dengan meilhat nilai koefisien determinasi, nilai koefisien determinasi pada model terbaik ini adalah 3379484 atau 33.80%
+
+atau dapat juga dihitung dengan perintah berikut:
+
+```{r membuat model regresi}
+regg <- glm(Y~1, data=dt, family= binomial(link="logit"))
+1-as.vector(logLik(reg)/logLik(regg)) 
+```
+
+## Kalsifikasi Model
+Pada bagian ini, akan digunakan untuk membangun model machine learning untuk mengklasifikasikan obesitas tipe 1 dan tipe 2.
+
+#Split Data
+Langkah awal yang dilakukan adalah membagi data menjadi data latih dan data uji deng proprosi 80%:20%
+
+```{r membuat model regresi}
+set.seed(111)
+ind <- sample(2, nrow(dt), replace = TRUE, prob = c(0.8, 0.2))
+latih <- dt[ind==1,]
+uji <- dt[ind==2,]
+```
+
+# Membuat Model Regresi Logistik
+dalam membangun model ini digunakan seluruh parameter utuk memprediksi obesitas
+
+
+```{r membuat model regresi}
+model <- glm(Y~X1+X2, data = dt, family = binomial(link = "logit"))
+model
+```
+
+## Prediksi
+
+```{r membuat model regresi}
+library(dplyr)
+
+probabilitas <- model %>% predict(uji, type = "response")
+prediksi <- ifelse(probabilitas> 0.5, "Tipe 1", "Tipe 2")
+tab1 <- table(Predicted = prediksi, Actual=uji$Y)
+tab1
+
+testAcc=(sum(diag(tab1))/sum(tab1))*100
+round(testAcc,2)
+```
+##          Actual
+## Predicted Tipe 1 Tipe 2
+##    Tipe 1      2      5
+##    Tipe 2      1      6
+
+Hasil prediksi menunjukkan bahwa berdasarkan data uji, dari 50 observasi terdapat 1 observasi Kepuasaan pengguna (tdk puas). Model berhasil memprediksi dengan tepat sebanyak 4 kepuasan pengguna (puas) , sedangkan sisanya diprediksi diabetes tipe 2. Serta terdapat 11 observasi pasien menderita diabetes tipe 2 dan model berhasil memprediksi dengan tepat sebanyak 6 pasien sedangkan 5 pasien lainnya diprediksi obesitas tipe 1. Sehingga keakuratan model dalam memprediksi adalah20%.Hasil prediksi menunjukkan bahwa berdasarkan data uji, dari 14 observasi terdapat 3 observasi pasien menderita diabetes tipe 1. Model berhasil memprediksi dengan tepat sebanyak 2 pasien, sedangkan sisanya diprediksi diabetes tipe 2. Serta terdapat 11 observasi pasien menderita diabetes tipe 2 dan model berhasil memprediksi dengan tepat sebanyak 6 pasien sedangkan 5 pasien lainnya diprediksi obesitas tipe 1. Sehingga keakuratan model dalam memprediksi adalah 57.14%.
+
